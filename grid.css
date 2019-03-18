@@ -1,0 +1,28 @@
+#labels_container{
+    padding: 10px 10px 10px 10px; 
+}
+
+#label_red, 
+#label_blue,
+#label_pink, 
+#label_lightBlue, 
+#label_default {
+    border-style: solid;
+    border-color: black;
+    border-width: 1px;
+    background-color: white; 
+}
+
+#label_red {
+    background-color: red; 
+}
+#label_blue {
+    background-color: blue; 
+}
+#label_pink {
+    background-color: pink; 
+}
+
+#label_lightBlue {
+    background-color: #add8e6;
+}
