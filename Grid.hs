@@ -122,7 +122,7 @@ relocateHomes city@(City{homes=cityHomes}) = (movedCity, movesHappened) where
     relocated - tries to move a home at the head of the provided list. down when no more indices to process.
 -}
 relocate :: City Home -> [Int] -> Bool -> (City Home, Bool)
-relocate city [] movesHappened = DT.trace(show "exited") (city, movesHappened)
+relocate city [] movesHappened =  (city, movesHappened)
 relocate city l@(x:xs) movesHappened = nextRelocation where
     (newCity, relocateHappened) = moveHome city x 
     movesHappenedAfterRelocate = movesHappened || relocateHappened

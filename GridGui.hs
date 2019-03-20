@@ -14,6 +14,7 @@ module GridGui(
     launch
 )
 where
+
 import qualified GI.Gtk as Gtk 
 import qualified GI.Gdk as Gdk
 import Data.GI.Base
@@ -38,7 +39,16 @@ data GuiCityCtx = GuiCityCtx {
     maxSteps::Int,
     gridSize::Int
     }  
-data GUIComponents = GUIComponents { labels :: [Gtk.Label]}
+data GUIComponents = GUIComponents { labels :: [Gtk.Label],
+                                   rSizeLbl :: Gtk.Label,
+                                   simLbl :: Gtk.Label,
+                                   rbLbl :: Gtk.Label,
+                                   eLbl :: Gtk.Label,
+                                   sizeLbl :: Gtk.Label,
+                                   stepsLbl :: Gtk.Label,
+                                   isRunningLbl :: Gtk.Label,
+                                   pctSatLbl :: Gtk.Label
+                                   }
 
 data GUIState = GUIState {  cityCtx   :: GuiCityCtx, 
                             city :: City Home,
@@ -50,7 +60,11 @@ data GUIState = GUIState {  cityCtx   :: GuiCityCtx,
 updateCityAndStep :: GUIState -> City Home -> GUIState
 updateCityAndStep (GUIState ctx curCity curStep isRunningVal shouldResetVal compnentsVal) newCity = GUIState ctx newCity (curStep + 1) isRunningVal shouldResetVal compnentsVal
 
---  padding: 195px 195px 195px 195px; 
+updateStepLabel :: GUIState -> IO()
+updateStepLabel state@{GUIState {currentStep=currentStepVal, maxSteps=maxStepsVal}} = do
+    let currentStepLabelVal = "Round: " ++ show currentStepVal ++ " of " ++ show maxStepsVal 
+    let currentStepLabel = stepsLbl.components $ state
+    set currentStepLabel [ #label := currentStepLabelVal]
 
 paddingStr = "#label_red,\n" ++ 
              "#label_blue,\n" ++ 
@@ -85,18 +99,40 @@ initializeCSSFromString labelCSS cssFile window = do
 
 -- Creates a GUIState  
 initState :: GuiCityCtx -> IO (IORef GUIState)  
-initState ctx@(GuiCityCtx{gridSize=gSize}) = do  
+initState ctx@(GuiCityCtx bPct rPct ePct ownershipInit maxStepsVal gSize) = do  
+    rSizeLbl <- new Gtk.Label [#label := DT.pack "R-size: 2" , 
+                              #name := "status_labels", 
+                              #justify := Gtk.JustificationLeft]
+    simLbl <- new Gtk.Label [#label := DT.pack "Similarity: TBD"  , 
+                            #name := "status_labels", 
+                            #justify := Gtk.JustificationLeft]
+    let rbText = "Red/Blue: " ++ show rPct ++ " " ++ show bPct
+    rbLbl <- new Gtk.Label [#label := DT.pack rbText , 
+                           #name := "status_labels", 
+                           #justify := Gtk.JustificationLeft]
+    let eText = "Empty: " ++ show ePct
+    eLbl <- new Gtk.Label [#label := DT.pack eText  , 
+                          #name := "status_labels", 
+                          #justify := Gtk.JustificationLeft]
+    let sizeText = "Size: " ++ show gSize ++ "X" ++ show gSize
+    sizeLbl <- new Gtk.Label [#label := DT.pack sizeText , 
+                             #name := "status_labels", 
+                             #justify := Gtk.JustificationLeft]
+    let stepsText =  "Round: 0 of " ++ show maxStepsVal 
+    stepsLbl<- new Gtk.Label [#label := DT.pack stepsText , 
+                             #name := "status_labels", 
+                             #justify := Gtk.JustificationLeft]
+    isRunningLbl <- new Gtk.Label [#label := DT.pack "Start" , 
+                                  #name := "status_labels", 
+                                  #justify := Gtk.JustificationLeft]
+    pctSatLbl <- new Gtk.Label [#label := DT.pack "Satisfied: 0%" , 
+                               #name := "status_labels", 
+                               #justify := Gtk.JustificationLeft]
     labels <- sequence $ Prelude.replicate (gSize^2) (new Gtk.Label [#name := "label_default"])
 
-    let components = GUIComponents labels
+    let components = GUIComponents labels rSizeLbl simLbl rbLbl eLbl sizeLbl stepsLbl isRunningLbl pctSatLbl
 
     -- Define the GUIState 
-    {- The first color that will appear will be white and initially the 
-    -- program is not iterating through the colors; therefore isRunning 
-    -- is set to false. The "shouldReset" is needed when a request to reset
-    -- the simulation is needed. By default, it's not needed since the simulation 
-       begins already reset. 
-    -} 
     let state = GUIState ctx None 0 False False components
 
     -- Define a newIORef for the state 
@@ -188,9 +224,9 @@ hanldeKeyPress stateRef eventKey = do
                     print "Running Simulation"
                     -- Create the initial city and update the stateRef
                     initGuiState <- initCityGUIState stateRef
-                    print("hi")
+                    let runningLbl = isRunningLbl.components $ initGuiState
+                    set runningLbl [ #label := "Running"]
                     timeoutAdd (fromIntegral Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION) 500 (handleTimeout stateRef)
-                    print("Bye")
                     return  initGuiState
                 else return state 
         -- 'r' maps to Unicode value 114
@@ -206,6 +242,7 @@ hanldeKeyPress stateRef eventKey = do
         _ -> return state 
     -- Update the IORef for the GUIState 
     writeIORef stateRef newGUIState
+    print "exited event handler"
     return True 
 
 getColor :: Home -> Double -> Color 
@@ -233,6 +270,7 @@ handleTimeout stateRef = do
 
     -- Retrieve the pure state from the stateRef 
     state <- readIORef stateRef
+    print $ unoccpiedHomes.city $ state
     let cityVal@(City{threshold=thresholdVal}) = city state
     let(cityAfterRelocation, moveHappened) =  relocateHomes cityVal
 
@@ -242,6 +280,14 @@ handleTimeout stateRef = do
                       in changeLabel labelClassVal idx 
     let indices = [0,1.. (DV.length (homes cityAfterRelocation) - 1)]
     let resetGui =  GUIState (cityCtx state) cityVal 0 False False (components state)
+
+    -- Call this to change the label to indicate the simulation is complete and then return a reset GUIState.
+    let endSimulation = do
+        let runningLbl = isRunningLbl.components $ state
+        set runningLbl [ #label := "Complete"]
+        return (False, resetGui)
+
+    
     {- Check to see if isRunning is set. If it is then we need to change 
        to the next color in the sequnce. If isRunning is False and shouldReset is True then 
        we need to cancel this timer and reset the grid of labels and our state information. If 
@@ -251,7 +297,7 @@ handleTimeout stateRef = do
     (result, newGUIState) <- case ((isRunning state), (shouldReset state)) of 
         (True, _) -> do
             let endSim = currentStep state == (maxSteps $ cityCtx state) || moveHappened == False
-            if endSim then  return (False, resetGui) else do 
+            if endSim then endSimulation else do 
                 mapM updateLabel indices
 
                 -- Update the GUIState with the nxtColor 
@@ -266,8 +312,8 @@ handleTimeout stateRef = do
             mapM updateWhite indices
 
             -- Reset the state! 
-            return (False, resetGui)
-        (False, _) -> return (False, resetGui)
+            endSimulation
+        (False, _) -> endSimulation
 
     -- Update the IORef for the GUIState 
     writeIORef stateRef newGUIState
@@ -297,7 +343,6 @@ launch ctx@(GuiCityCtx bPct rPct ePct ownershipInit maxStepsVal gSize)= do
 
   let labelStyleCSS = initLabelSize gSize gridWidth gridHeight 
   
-  print labelStyleCSS
   -- Initialize the Application level styling with CSS styling information for the 
   -- label sizes. 
   initializeCSSFromString labelStyleCSS "grid.css" win 
@@ -311,17 +356,42 @@ launch ctx@(GuiCityCtx bPct rPct ePct ownershipInit maxStepsVal gSize)= do
   -- Create the application main layout 
   layoutWindow <- Gtk.boxNew Gtk.OrientationVertical 0
   #add layoutWindow labelsGridLayout 
+  state <- readIORef stateRef
+  let comp = components state
+  -- Add Initial Text Compenents
+
+  textContainer <- Gtk.boxNew Gtk.OrientationHorizontal 0 
+  -- Lables that change each step
+  leftTextWindow <- Gtk.boxNew Gtk.OrientationVertical 0 
+  #add leftTextWindow $ stepsLbl comp
+  #add leftTextWindow $ sizeLbl comp
+  #add leftTextWindow $ rSizeLbl comp
+
+  -- Lables that never change
+  centerTextWindow <- Gtk.boxNew Gtk.OrientationVertical 0 
+  #add centerTextWindow $ pctSatLbl comp
+  #add centerTextWindow $ rbLbl comp
+  #add centerTextWindow $ simLbl comp
+
+  -- Lables that users can modify
+  rightTextWindow <- Gtk.boxNew Gtk.OrientationVertical 0 
+  #add rightTextWindow $ isRunningLbl comp
+  #add rightTextWindow $ eLbl comp
+
+  -- Add them to the layout
+  #add textContainer leftTextWindow 
+  #add textContainer centerTextWindow 
+  #add textContainer rightTextWindow
+  #add layoutWindow textContainer
  
   -- Add a global function to handle key presses in application 
   -- You need to make sure you pass in your IORef of the GUIState 
   -- to the key press 
   on win #keyPressEvent (hanldeKeyPress stateRef) 
 
-  -- Stop spinner animation after finish load.
-  -- timeoutAdd (fromIntegral Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION) 5000 handleTimeout
-
   -- Add the main application layout to the window 
   #add win layoutWindow 
+
 
   -- Show the window 
   #showAll win

@@ -26,3 +26,8 @@
 #label_lightBlue {
     background-color: #add8e6;
 }
+
+#status_labels{
+    font-size:16px;
+    padding:10px 100px 10px 100px;
+}
