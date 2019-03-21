@@ -132,23 +132,25 @@ relocate city l@(x:xs) movesHappened = nextRelocation where
 -}
 moveHome :: City Home -> Int -> (City Home, Bool)
 moveHome city@(City r c cityHomes unoccpiedCityHomes rVal threshold) idx = (cityAfterRelocation, moveHappend) where
-    home@(Home hrow hcolumn hOwner simScore) = cityHomes DV.! idx
+    home@(Home hrow hcolumn hOwner simScore) = DT.trace ("idx: "++ show idx) cityHomes DV.! idx
     currentHomeIfRelocated = Home hrow hcolumn O 0
+    cityIfOwnerMoved = emulateCity city idx O
+    emulatedCityHomes = homes cityIfOwnerMoved
     -- Find other unoccipied homes that might be better
-    emulatedHomes = map (\x -> (x, emulateHome city x hOwner)) unoccpiedCityHomes
+    emulatedHomes = map (\x -> (x, emulateHome cityIfOwnerMoved x hOwner)) unoccpiedCityHomes
     relocationOptions = filter(\(idx, home) -> similarity home >= threshold) emulatedHomes
     minSimScore = foldr (\(idx, home) accum -> if similarity home < accum then similarity home else accum) 1.0 relocationOptions
-    bestRelocationOptions = filter(\(idx, home) -> similarity home == minSimScore) relocationOptions
+    bestRelocationOptions = filter(\(idx, home) ->similarity home == minSimScore) relocationOptions
     (bOIdx, bestOption) =  head bestRelocationOptions
     newUnoccpiedCityHomes = DL.delete bOIdx unoccpiedCityHomes ++ [idx]
     -- Swap in the homes
-    newCityHomes = cityHomes DV.// [(idx, currentHomeIfRelocated), (bOIdx, bestOption)]
+    newCityHomes = emulatedCityHomes DV.// [(bOIdx, bestOption)]
     newCity = City r c newCityHomes newUnoccpiedCityHomes rVal threshold
     newCityWithScores = updateSimilarityScores newCity
     (cityAfterRelocation, moveHappend)  | hOwner == O = (city, False)
-                                       | simScore >= threshold = (city, False)
+                                       | DT.trace  ("Satisfied " ++ (show idx ++ show simScore)) simScore >= threshold = (city, False)
                                        | length bestRelocationOptions == 0 = (city, False)
-                                       | otherwise = (newCityWithScores, True)
+                                       | otherwise = DT.trace ((show idx ++ (show bOIdx) ++ (show bestOption))) (newCityWithScores, True)
 
 {-
     emulateHome - takes an index of an unoccupied home and returns a home as if it were occupied by the given owner type.
@@ -160,4 +162,10 @@ emulateHome city@(City r c cityHomes unoccpiedCityHomes rVal threshold) idx newO
     fakeCityHomes = cityHomes DV.// [(idx, fakeHome)]
     fakeCity = City r c fakeCityHomes unoccpiedCityHomes rVal threshold
     homeAfterRelocate = getSimilarityScore fakeHome fakeCity
-
+    
+emulateCity :: City Home -> Int -> Ownership -> City Home
+emulateCity city@(City r c cityHomes unoccpiedCityHomes rVal threshold) idx newOwner = fakeCity where
+    (Home hrow hcolumn _ _) = cityHomes DV.! idx
+    fakeHome = Home hrow hcolumn newOwner 0
+    fakeCityHomes = cityHomes DV.// [(idx, fakeHome)]
+    fakeCity = City r c fakeCityHomes unoccpiedCityHomes rVal threshold

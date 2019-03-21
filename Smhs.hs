@@ -4,7 +4,7 @@ module Smhs where
     import System.Environment
     import Grid
     import Debug.Trace as DT
-    import GridGui
+  --  import GridGui
     import qualified Data.Vector as DV
 
     statement :: String
@@ -107,6 +107,6 @@ module Smhs where
         let blueCells = getCells bPct occupiedCells
         -- Create list of R, B, and O 
         let ownershipInit = take redCells (repeat "R") ++ take blueCells (repeat "B") ++ take emptyCells (repeat "O") 
-        let ctx = GuiCityCtx bPct rPct ePct ownershipInit maxStepsVal gSize
-        launch ctx
-    
+     --   let ctx = GuiCityCtx bPct rPct ePct ownershipInit maxStepsVal gSize
+     --   launch ctx
+        print "hi"
