@@ -61,7 +61,7 @@ updateCityAndStep :: GUIState -> City Home -> GUIState
 updateCityAndStep (GUIState ctx curCity curStep isRunningVal shouldResetVal compnentsVal) newCity = GUIState ctx newCity (curStep + 1) isRunningVal shouldResetVal compnentsVal
 
 updateStepLabel :: GUIState -> IO()
-updateStepLabel state@{GUIState {currentStep=currentStepVal, maxSteps=maxStepsVal}} = do
+updateStepLabel state@(GUIState {currentStep=currentStepVal, maxSteps=maxStepsVal}) = do
     let currentStepLabelVal = "Round: " ++ show currentStepVal ++ " of " ++ show maxStepsVal 
     let currentStepLabel = stepsLbl.components $ state
     set currentStepLabel [ #label := currentStepLabelVal]
