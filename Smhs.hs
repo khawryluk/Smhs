@@ -4,9 +4,8 @@ module Smhs where
     import System.Environment
     import Grid
     import Debug.Trace as DT
-  --  import GridGui
+    import GridGui
     import qualified Data.Vector as DV
-    import  Data.List.Split
 
     statement :: String
     statement = "Usage: smhs (-t  <grid file> <R> <threshold> <max_steps>) || (<grid size> <red_percentage> <blue_percentage> <empty_percentage> <max_steps>)"
@@ -19,7 +18,7 @@ module Smhs where
             _ -> print $ statement
 
     {-
-    getValidPct - reads in a string argument and tries to convert it to an int between 0 and 100. If it can't throw an error.
+        getValidPct - reads in a string argument and tries to convert it to an int between 0 and 100. If it can't throw an error.
     -}
     getValidPct :: String -> String -> Int
     getValidPct variableName pctString = validPct where
@@ -28,7 +27,7 @@ module Smhs where
                 | otherwise = error (variableName ++ " is not between 0 and 100.")
     
     {-
-    getValidPct - reads in a string argument and tries to convert it to an int between 5 and 15. If it can't throw an error.
+        getValidPct - reads in a string argument and tries to convert it to an int between 5 and 15. If it can't throw an error.
     -}
     getValidGrid :: String -> Int
     getValidGrid sizeString = validSize where
@@ -51,16 +50,33 @@ module Smhs where
         let cityWithSimScores = updateSimilarityScores city
         runTextSimulation cols 0 maxStepsVal city
 
+    {-
+        printOwners - creates a string to return to print the owners in text mode.
+    -}
+    printOwners :: Int -> [Ownership] -> String -> IO()
+    printOwners _ [] accum = print accum
+    printOwners cols lst accum = do
+        let ownersToPrint = take cols lst
+        let ownersToRecurse = drop cols lst
+        let lineToStr x accum = if accum == "" then show x else show x ++ " " ++ accum
+        let line = foldr lineToStr "" ownersToPrint
+        let updatedAccum = accum ++ line ++ "\n"
+        printOwners cols ownersToRecurse updatedAccum
 
+    {-
+        runTextSimulation - runs the simulation until stopping criteria are met.
+    -}
     runTextSimulation ::  Int -> Int -> Int -> City Home -> IO()
     runTextSimulation cols currentStep maxSteps city = do
         let (cityAfterRelocation, moveHappened) =  relocateHomes city
         let shouldStop = currentStep == maxSteps || moveHappened == False 
-        let owners = DV.map owner (homes $ city)
-        let ownersList = chunksOf cols (DV.toList owners)
-        if shouldStop then mapM (print $ show) ownersList
+        let owners = DV.toList $ DV.map owner (homes $ city)
+        if shouldStop then printOwners cols owners (show cols ++ "\n")
                      else runTextSimulation cols (currentStep + 1) maxSteps cityAfterRelocation
 
+    {-
+        readGridFile - parses a grid file and returns the number of rows, columns, and an array of ownership strings.
+    -}
     readGridFile :: String -> IO (Int, Int, [String])
     readGridFile gridFile = do
         gridFileContent <- readFile gridFile
@@ -91,7 +107,6 @@ module Smhs where
         let blueCells = getCells bPct occupiedCells
         -- Create list of R, B, and O 
         let ownershipInit = take redCells (repeat "R") ++ take blueCells (repeat "B") ++ take emptyCells (repeat "O") 
-       -- let ctx = GuiCityCtx bPct rPct ePct ownershipInit maxStepsVal gSize
-        print "hi"
-        --launch ctx
+        let ctx = GuiCityCtx bPct rPct ePct ownershipInit maxStepsVal gSize
+        launch ctx
     
