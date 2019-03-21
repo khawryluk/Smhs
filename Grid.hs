@@ -139,7 +139,7 @@ moveHome city@(City r c cityHomes unoccpiedCityHomes rVal threshold) idx = (city
     -- Find other unoccipied homes that might be better
     emulatedHomes = map (\x -> (x, emulateHome cityIfOwnerMoved x hOwner)) unoccpiedCityHomes
     relocationOptions = filter(\(idx, home) -> similarity home >= threshold) emulatedHomes
-    minSimScore = foldr (\(idx, home) accum -> if similarity home < accum then similarity home else accum) 1.0 relocationOptions
+    minSimScore = DT.trace (show relocationOptions) foldr (\(idx, home) accum -> if similarity home < accum then similarity home else accum) 1.0 relocationOptions
     bestRelocationOptions = filter(\(idx, home) ->similarity home == minSimScore) relocationOptions
     (bOIdx, bestOption) =  head bestRelocationOptions
     newUnoccpiedCityHomes = DL.delete bOIdx unoccpiedCityHomes ++ [idx]
@@ -148,9 +148,9 @@ moveHome city@(City r c cityHomes unoccpiedCityHomes rVal threshold) idx = (city
     newCity = City r c newCityHomes newUnoccpiedCityHomes rVal threshold
     newCityWithScores = updateSimilarityScores newCity
     (cityAfterRelocation, moveHappend)  | hOwner == O = (city, False)
-                                       | DT.trace  ("Satisfied " ++ (show idx ++ show simScore)) simScore >= threshold = (city, False)
+                                       | simScore >= threshold = DT.trace  ("Satisfied " ++ (show idx ++ "simScore" ++ show simScore ++ "thresh" ++ show threshold ++ " simScore >= threshold" ++ show ( simScore >= threshold))) (city, False)
                                        | length bestRelocationOptions == 0 = (city, False)
-                                       | otherwise = DT.trace ((show idx ++ (show bOIdx) ++ (show bestOption))) (newCityWithScores, True)
+                                       | otherwise = DT.trace ((show idx ++ "swaps with" ++ (show bOIdx) ++ (show bestOption) ++ "simScore" ++ show home)) (newCityWithScores, True)
 
 {-
     emulateHome - takes an index of an unoccupied home and returns a home as if it were occupied by the given owner type.

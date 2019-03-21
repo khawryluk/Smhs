@@ -48,7 +48,7 @@ module Smhs where
         (rows, cols, ownershipInit) <- readGridFile gridFile
         let city = createCity rows cols neighborhoodSize thresholdVal ownershipInit
         let cityWithSimScores = updateSimilarityScores city
-        runTextSimulation cols 0 maxStepsVal city
+        runTextSimulation cols 0 maxStepsVal cityWithSimScores
 
     {-
         printOwners - creates a string to return to print the owners in text mode.
@@ -68,7 +68,7 @@ module Smhs where
     -}
     runTextSimulation ::  Int -> Int -> Int -> City Home -> IO()
     runTextSimulation cols currentStep maxSteps city = do
-        let (cityAfterRelocation, moveHappened) =  relocateHomes city
+        let (cityAfterRelocation, moveHappened) =  DT.trace (show city) relocateHomes city
         let shouldStop = currentStep == maxSteps || moveHappened == False 
         let owners = DV.toList $ DV.map owner (homes $ city)
         if shouldStop then printOwners cols owners (show cols ++ "\n")
