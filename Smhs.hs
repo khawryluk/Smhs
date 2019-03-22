@@ -44,9 +44,10 @@ module Smhs where
     runTextMode gridFile r threshold maxSteps = do
         let neighborhoodSize = read r :: Int
         let thresholdVal = read threshold :: Double
+        let thresholdPct = thresholdVal / 100
         let maxStepsVal = read maxSteps :: Int
         (rows, cols, ownershipInit) <- readGridFile gridFile
-        let city = createCity rows cols neighborhoodSize thresholdVal ownershipInit
+        let city = createCity rows cols neighborhoodSize thresholdPct ownershipInit
         let cityWithSimScores = updateSimilarityScores city
         runTextSimulation cols 0 maxStepsVal cityWithSimScores
 

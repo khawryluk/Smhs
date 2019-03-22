@@ -138,7 +138,7 @@ moveHome city@(City r c cityHomes unoccpiedCityHomes rVal threshold) idx = (city
     emulatedCityHomes = homes cityIfOwnerMoved
     -- Find other unoccipied homes that might be better
     emulatedHomes = map (\x -> (x, emulateHome cityIfOwnerMoved x hOwner)) unoccpiedCityHomes
-    relocationOptions = filter(\(idx, home) -> similarity home >= threshold) emulatedHomes
+    relocationOptions =  DT.trace (show emulatedHomes) filter(\(idx, home) -> similarity home >= threshold) emulatedHomes
     minSimScore = DT.trace (show relocationOptions) foldr (\(idx, home) accum -> if similarity home < accum then similarity home else accum) 1.0 relocationOptions
     bestRelocationOptions = filter(\(idx, home) ->similarity home == minSimScore) relocationOptions
     (bOIdx, bestOption) =  head bestRelocationOptions
