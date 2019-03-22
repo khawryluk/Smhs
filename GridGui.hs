@@ -57,12 +57,32 @@ data GUIState = GUIState {  cityCtx   :: GuiCityCtx,
                            shouldReset   :: Bool, 
                            components    :: GUIComponents
                          }
+{-
+updateCityAndStep - updates the GUIState with a new city and increments the step.
+-}
 updateCityAndStep :: GUIState -> City Home -> GUIState
 updateCityAndStep (GUIState ctx curCity curStep isRunningVal shouldResetVal compnentsVal) newCity = GUIState ctx newCity (curStep + 1) isRunningVal shouldResetVal compnentsVal
 
+
+updatePctSatLbl :: GUIState -> IO()
+updatePctSatLbl state@(GUIState {city=cityVal}) = do
+    print "change sat label"
+    let cityHomes = homes cityVal
+    let thresholdVal = threshold cityVal
+    let satTotal = DV.length.DV.filter (\x -> similarity x >= thresholdVal) $ cityHomes
+    let len = DV.length $ cityHomes
+    let satPct = (100 * satTotal) `div` len
+    let satValText = show $ satPct
+    let satLabelText = DT.pack $ "Satisfied: " ++ satValText ++ "%"
+    let currentPctSatLbl = pctSatLbl.components $ state
+    set currentPctSatLbl [ #label := satLabelText]
+{-
+updateStepLabel - updates the step label. 
+-}
 updateStepLabel :: GUIState -> IO()
-updateStepLabel state@(GUIState {currentStep=currentStepVal, maxSteps=maxStepsVal}) = do
-    let currentStepLabelVal = "Round: " ++ show currentStepVal ++ " of " ++ show maxStepsVal 
+updateStepLabel state@(GUIState {currentStep=currentStepVal, cityCtx=ctx}) = do
+    let maxStepsVal = maxSteps ctx
+    let currentStepLabelVal = DT.pack $  "Round: " ++ show currentStepVal ++ " of " ++ show maxStepsVal 
     let currentStepLabel = stepsLbl.components $ state
     set currentStepLabel [ #label := currentStepLabelVal]
 
@@ -88,6 +108,9 @@ initLabelSize gridSize gridWidth gridHeight = let
   in 
     paddingStr ++ top ++ "px " ++ left ++ "px " ++ bottom ++ "px "  ++ right ++ "px \n}\n"
 
+{-
+initializeCSSFromString - load css file.
+-}
 initializeCSSFromString :: String ->  String -> Gtk.Window -> IO () 
 initializeCSSFromString labelCSS cssFile window = do 
     provider <- Gtk.cssProviderNew
@@ -97,7 +120,9 @@ initializeCSSFromString labelCSS cssFile window = do
     screen <- #getScreen window
     Gtk.styleContextAddProviderForScreen screen provider  (fromIntegral Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
--- Creates a GUIState  
+{-
+initState - Creates a GUIState  
+-}
 initState :: GuiCityCtx -> IO (IORef GUIState)  
 initState ctx@(GuiCityCtx bPct rPct ePct ownershipInit maxStepsVal gSize) = do  
     rSizeLbl <- new Gtk.Label [#label := DT.pack "R-size: 2" , 
@@ -138,6 +163,9 @@ initState ctx@(GuiCityCtx bPct rPct ePct ownershipInit maxStepsVal gSize) = do
     -- Define a newIORef for the state 
     newIORef state 
 
+{-
+convertTo32 - converts int to int32 for working with grids.
+-}
 convertTo32 :: Int -> DI.Int32
 convertTo32 int = fromIntegral int
 
@@ -161,8 +189,8 @@ createLabelGrid stateRef gridWidth = do
     let attachToLayout = Gtk.gridAttach gridLayout
     let states = labels.components $ state
     let attachToGrid idx =  let item = states !! idx
-                                row = DTT.trace(show $ getRow idx) getRow idx
-                                col = DTT.trace(show $ getCol idx) getCol idx
+                                row = getRow idx
+                                col = getCol idx
                             in attachToLayout item col row 1 1   
 
     mapM attachToGrid indices
@@ -245,6 +273,9 @@ hanldeKeyPress stateRef eventKey = do
     print "exited event handler"
     return True 
 
+{-
+   getColor - Given a home and threshold value return a color for the grid label.
+-}
 getColor :: Home -> Double -> Color 
 getColor (Home {owner=R, similarity=sim}) threshold  | sim >= threshold = Red
                                                     | otherwise = Pink
@@ -252,9 +283,15 @@ getColor (Home {owner=B, similarity=sim}) threshold  | sim >= threshold = Blue
                                                     | otherwise = LightBlue
 getColor (Home {owner=O}) _  = White
 
+{-
+labelHomeClass - given a home and threshold value get the class for the color label. 
+-}
 labelHomeClass :: Double -> Home -> Text
 labelHomeClass thresholdVal home = labelClass.getColor home $ thresholdVal
 
+{-
+labelClass - get the color label for css from a given color.
+-}
 labelClass :: Color -> Text
 labelClass color = case color of 
     White -> "label_default"
@@ -270,7 +307,6 @@ handleTimeout stateRef = do
 
     -- Retrieve the pure state from the stateRef 
     state <- readIORef stateRef
-    print $ unoccpiedHomes.city $ state
     let cityVal@(City{threshold=thresholdVal}) = city state
     let(cityAfterRelocation, moveHappened) =  relocateHomes cityVal
 
@@ -302,7 +338,8 @@ handleTimeout stateRef = do
 
                 -- Update the GUIState with the nxtColor 
                 let guiStateWithRelocatedCity = updateCityAndStep state cityAfterRelocation
-
+                updateStepLabel guiStateWithRelocatedCity
+                updatePctSatLbl guiStateWithRelocatedCity
                 -- Return a tuple. The first component is whether this timer should be canceled or not
                 -- and second component is the updated GUI state. 
                 return (True, guiStateWithRelocatedCity)

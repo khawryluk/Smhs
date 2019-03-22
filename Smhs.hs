@@ -4,7 +4,7 @@ module Smhs where
     import System.Environment
     import Grid
     import Debug.Trace as DT
-  --  import GridGui
+    import GridGui
     import qualified Data.Vector as DV
 
     statement :: String
@@ -54,25 +54,27 @@ module Smhs where
     {-
         printOwners - creates a string to return to print the owners in text mode.
     -}
-    printOwners :: Int -> [Ownership] -> String -> IO()
-    printOwners _ [] accum = print accum
-    printOwners cols lst accum = do
+    printOwners :: Int -> [Ownership] -> IO()
+    printOwners _  [] = return ()
+    printOwners cols lst = do
         let ownersToPrint = take cols lst
         let ownersToRecurse = drop cols lst
         let lineToStr x accum = if accum == "" then show x else show x ++ " " ++ accum
         let line = foldr lineToStr "" ownersToPrint
-        let updatedAccum = accum ++ line ++ "\n"
-        printOwners cols ownersToRecurse updatedAccum
+        putStrLn line
+        printOwners cols ownersToRecurse
 
     {-
         runTextSimulation - runs the simulation until stopping criteria are met.
     -}
     runTextSimulation ::  Int -> Int -> Int -> City Home -> IO()
     runTextSimulation cols currentStep maxSteps city = do
-        let (cityAfterRelocation, moveHappened) =  DT.trace (show city) relocateHomes city
+        let (cityAfterRelocation, moveHappened) =  relocateHomes city
         let shouldStop = currentStep == maxSteps || moveHappened == False 
         let owners = DV.toList $ DV.map owner (homes $ city)
-        if shouldStop then printOwners cols owners (show cols ++ "\n")
+        if shouldStop then do 
+                        print $ cols
+                        printOwners cols owners
                      else runTextSimulation cols (currentStep + 1) maxSteps cityAfterRelocation
 
     {-
@@ -108,6 +110,5 @@ module Smhs where
         let blueCells = getCells bPct occupiedCells
         -- Create list of R, B, and O 
         let ownershipInit = take redCells (repeat "R") ++ take blueCells (repeat "B") ++ take emptyCells (repeat "O") 
-     --   let ctx = GuiCityCtx bPct rPct ePct ownershipInit maxStepsVal gSize
-     --   launch ctx
-        print "hi"
+        let ctx = GuiCityCtx bPct rPct ePct ownershipInit maxStepsVal gSize
+        launch ctx
