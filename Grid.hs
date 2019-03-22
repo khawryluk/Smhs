@@ -163,6 +163,9 @@ emulateHome city@(City r c cityHomes unoccpiedCityHomes rVal threshold) idx newO
     fakeCity = City r c fakeCityHomes unoccpiedCityHomes rVal threshold
     homeAfterRelocate = getSimilarityScore fakeHome fakeCity
     
+{-
+    emulateCity - Takes an index and sets the home there to unoccupied. Returns the modified city.
+-}
 emulateCity :: City Home -> Int -> Ownership -> City Home
 emulateCity city@(City r c cityHomes unoccpiedCityHomes rVal threshold) idx newOwner = fakeCity where
     (Home hrow hcolumn _ _) = cityHomes DV.! idx

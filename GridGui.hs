@@ -1,10 +1,13 @@
 {- 
-    This program contains a 2x2 grid of labels that switch between the colors Red, Blue, Yellow. 
+    GridGui - This creates an interactive GUI for users to control and run housing segregation simulations.
 
     Key Presses 
       'space bar' -> To start the simulation of the labels switching colors 
       'r'         -> To reset the the labels back to white 
-      'p'         -> To pause the simulation 
+      'Up'        -> To increase the similarity threshold
+      'Down'      -> To decrease the similarity theshold
+      'Left'      -> To increase the neighborhood size
+      'Right'     -> To decrease the neighborhood size.
 
 -}
 
@@ -31,6 +34,7 @@ import qualified Debug.Trace as DTT
 import qualified Data.Vector as DV
 import Grid
 data Color = White | Red | Blue | Pink | LightBlue  
+data Increment = Increase | Decrease
 data GuiCityCtx = GuiCityCtx {
     bluePct::Int,
     redPct::Int,
@@ -63,14 +67,86 @@ updateCityAndStep - updates the GUIState with a new city and increments the step
 updateCityAndStep :: GUIState -> City Home -> GUIState
 updateCityAndStep (GUIState ctx curCity curStep isRunningVal shouldResetVal compnentsVal) newCity = GUIState ctx newCity (curStep + 1) isRunningVal shouldResetVal compnentsVal
 
+{-
+updateNeighborhoodSize - updates the r value in the city used by the simulation and changes the label.
+-}
+updateNeighborhoodSize :: GUIState -> Increment -> IO(GUIState)
+updateNeighborhoodSize state Increase = do
+    let (newState, newR) = updateNeighborhoodSizeVal state $ (+) 1
+    updateRLabel newState newR
+    return newState
 
+updateNeighborhoodSize state Decrease = do
+    let (newState, newR) = updateNeighborhoodSizeVal state $ (+) (-1)
+    updateRLabel newState newR
+    return newState
+
+{-
+updateNeighborhoodSizeVal - changes the r value in the city used by the simulation.
+-}
+updateNeighborhoodSizeVal :: GUIState -> (Int -> Int) -> (GUIState, Int)
+updateNeighborhoodSizeVal (GUIState ctx curCity curStep isRunningVal shouldResetVal compnentsVal) changeR = (newState, newR) where
+    city@(City r c cityHomes unoccpiedCityHomes rVal threshold) = curCity
+    newR = DTT.trace (show rVal ++ "  " ++ show (changeR rVal)) max 0 (changeR rVal)
+    newCity = City r c cityHomes unoccpiedCityHomes newR threshold
+    newState = GUIState ctx newCity curStep isRunningVal shouldResetVal compnentsVal
+
+
+{-
+updateRLabel - updates the step label. 
+-}
+updateRLabel :: GUIState -> Int -> IO()
+updateRLabel state@(GUIState {currentStep=currentStepVal, cityCtx=ctx}) newR = do
+    let newRLabelVal = DT.pack $  "R-size: " ++ show newR
+    let currentRLabel = rSizeLbl.components $ state
+    set currentRLabel [ #label := newRLabelVal]
+
+
+{-
+updateThreshold - updates the r value in the city used by the simulation and changes the label.
+-}
+updateThreshold :: GUIState -> Increment -> IO(GUIState)
+updateThreshold state Increase = do
+    let (newState, newT) = updateThresholdVal state $ (+) 0.05
+    updateThresholdLabel newState newT
+    return newState
+
+updateThreshold state Decrease = do
+    let (newState, newT) = updateThresholdVal state  $ (+) (-0.05)
+    updateThresholdLabel newState newT
+    return newState
+
+{-
+updateThreshold - changes the threshold value in the city used by the simulation.
+-}
+updateThresholdVal :: GUIState -> (Double -> Double) -> (GUIState, Double)
+updateThresholdVal (GUIState ctx curCity curStep isRunningVal shouldResetVal compnentsVal) changeThreshold = (newState, capNewThreshold) where
+    city@(City r c cityHomes unoccpiedCityHomes rVal threshold) = curCity
+    newThreshold = (changeThreshold threshold)
+    capNewThreshold = if newThreshold > 1 then 1 else if newThreshold < 0 then 0 else newThreshold
+    newCity = City r c cityHomes unoccpiedCityHomes rVal capNewThreshold
+    newState = GUIState ctx newCity curStep isRunningVal shouldResetVal compnentsVal
+
+
+{-
+updateThresholdLabel - updates the step label. 
+-}
+updateThresholdLabel :: GUIState -> Double -> IO()
+updateThresholdLabel state@(GUIState {currentStep=currentStepVal, cityCtx=ctx}) newThreshold = do
+    let newThresholdInt = round $ 100 * newThreshold
+    let newRLabelVal = DT.pack $  "Similarity: " ++ show newThresholdInt ++ "%"
+    let currentRLabel = simLbl.components $ state
+    set currentRLabel [ #label := newRLabelVal]
+   
+{-
+updatePctSatLbl - changes the satified lable to show the pct of occupants that are satisfied.
+-}
 updatePctSatLbl :: GUIState -> IO()
 updatePctSatLbl state@(GUIState {city=cityVal}) = do
-    print "change sat label"
     let cityHomes = homes cityVal
     let thresholdVal = threshold cityVal
     let satTotal = DV.length.DV.filter (\x -> similarity x >= thresholdVal) $ cityHomes
-    let len = DV.length $ cityHomes
+    let len = DV.length.DV.filter (\x -> owner x /= O) $ cityHomes
     let satPct = (100 * satTotal) `div` len
     let satValText = show $ satPct
     let satLabelText = DT.pack $ "Satisfied: " ++ satValText ++ "%"
@@ -128,14 +204,14 @@ initState ctx@(GuiCityCtx bPct rPct ePct ownershipInit maxStepsVal gSize) = do
     rSizeLbl <- new Gtk.Label [#label := DT.pack "R-size: 2" , 
                               #name := "status_labels", 
                               #justify := Gtk.JustificationLeft]
-    simLbl <- new Gtk.Label [#label := DT.pack "Similarity: TBD"  , 
+    simLbl <- new Gtk.Label [#label := DT.pack "Similarity: 50%"  , 
                             #name := "status_labels", 
                             #justify := Gtk.JustificationLeft]
-    let rbText = "Red/Blue: " ++ show rPct ++ " " ++ show bPct
+    let rbText = "Red/Blue: " ++ show rPct ++ "% / " ++ show bPct  ++ "%"
     rbLbl <- new Gtk.Label [#label := DT.pack rbText , 
                            #name := "status_labels", 
                            #justify := Gtk.JustificationLeft]
-    let eText = "Empty: " ++ show ePct
+    let eText = "Empty: " ++ show ePct ++ "%"
     eLbl <- new Gtk.Label [#label := DT.pack eText  , 
                           #name := "status_labels", 
                           #justify := Gtk.JustificationLeft]
@@ -221,20 +297,40 @@ shuffle xs = do
 {-
 initCityGUIState - creates the starting state of the city. 
 -}
-initCityGUIState :: IORef (GUIState) -> IO (GUIState)
-initCityGUIState stateRef = do
+initCityGUIState :: IORef (GUIState) -> Int -> Double -> IO (GUIState)
+initCityGUIState stateRef neighborhoodSize thresholdVal= do
     state <- readIORef stateRef
     let ctx@(GuiCityCtx bPct rPct ePct ownershipInit maxStepsVal gSize) = cityCtx state
     shuffleOwnershipInit <- shuffle ownershipInit
-    let defaultNeighborhoodSize = 2
-    let defaultThresholdVal = 0.50
-    let city = createCity gSize gSize defaultNeighborhoodSize defaultThresholdVal shuffleOwnershipInit
+    let city = createCity gSize gSize neighborhoodSize thresholdVal shuffleOwnershipInit
     let cityWithSimScores = updateSimilarityScores city
-    let newGUIState = GUIState ctx cityWithSimScores 0 True False (components state)
+    let newGUIState = GUIState ctx cityWithSimScores 0 False False (components state)
     writeIORef stateRef newGUIState
     return newGUIState
-            
 
+{-
+getRAndThreshold - if the boolean is true, return defualt values, otherwise return the r and threshold from the city. 
+-}
+getRAndThreshold :: City Home -> Bool -> (Int, Double)
+getRAndThreshold _ True = (2, 0.5)
+getRAndThreshold city _ = (neighborhoodSize, thresholdVal) where
+    (City{r=neighborhoodSize, threshold = thresholdVal}) = city
+{-
+setUpSimulation - generate a new random city and update the grid accordingly.
+-}            
+setUpSimulation ::   IORef (GUIState) -> Bool -> IO (GUIState)
+setUpSimulation stateRef useDefaults = do
+    -- Create the initial city and update the stateRef
+    state <- readIORef stateRef
+    let (neighborhoodSize, thresholdVal) = getRAndThreshold (city state) useDefaults
+    initGuiState <- initCityGUIState stateRef neighborhoodSize thresholdVal
+    writeIORef stateRef initGuiState
+    updateGridColors stateRef
+    return  initGuiState
+
+{-
+handleKeyPress - listens for user input.
+-}
 hanldeKeyPress :: IORef (GUIState) -> Gdk.EventKey -> IO Bool
 hanldeKeyPress stateRef eventKey = do 
     keyVal <- get eventKey #keyval
@@ -249,13 +345,11 @@ hanldeKeyPress stateRef eventKey = do
             -}
             if not(isRunning state)  
                 then do 
-                    print "Running Simulation"
-                    -- Create the initial city and update the stateRef
-                    initGuiState <- initCityGUIState stateRef
-                    let runningLbl = isRunningLbl.components $ initGuiState
+                    let startGUIState = GUIState (cityCtx state) (city state) 0 True False (components state)
+                    let runningLbl = isRunningLbl.components $ startGUIState
                     set runningLbl [ #label := "Running"]
-                    timeoutAdd (fromIntegral Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION) 500 (handleTimeout stateRef)
-                    return  initGuiState
+                    timeoutAdd (fromIntegral Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION) 750 (handleTimeout stateRef)
+                    return startGUIState
                 else return state 
         -- 'r' maps to Unicode value 114
         114 -> do 
@@ -265,12 +359,38 @@ hanldeKeyPress stateRef eventKey = do
             -- We stop the running of the simulation and once stopped we specify that we should reset the grid 
             print "Resetting Simulation"
             let newGUIState = GUIState (cityCtx state) (city state) 0 False True (components state)
-            return newGUIState
+            writeIORef stateRef newGUIState
+            newSimState <- setUpSimulation stateRef False
+            return newSimState
+        -- Left
+        0xff51 -> do
+            if not(isRunning state)  
+                then do 
+                    adjGUIState <- updateNeighborhoodSize state Increase
+                    return adjGUIState
+                else return state 
+
+        -- Right
+        0xff53 -> do
+            if not(isRunning state)  
+                then do 
+                    adjGUIState <- updateNeighborhoodSize state Decrease
+                    return adjGUIState
+                else return state 
+
+        -- Up
+        0xff52 -> do
+            adjGUIState <- updateThreshold state Increase
+            return adjGUIState
+
+        -- Down
+        0xff54 -> do
+            adjGUIState <- updateThreshold state Decrease
+            return adjGUIState
 
         _ -> return state 
     -- Update the IORef for the GUIState 
     writeIORef stateRef newGUIState
-    print "exited event handler"
     return True 
 
 {-
@@ -300,12 +420,8 @@ labelClass color = case color of
     Pink ->  "label_pink"
     LightBlue ->  "label_lightBlue"
 
-handleTimeout :: IORef (GUIState) -> IO Bool 
-handleTimeout stateRef = do 
-    -- Check the console window to seee that this is being print ~5 seconds 
-    putStrLn "Calling handleTimeout"
-
-    -- Retrieve the pure state from the stateRef 
+updateGridColors :: IORef(GUIState) -> IO()
+updateGridColors stateRef = do
     state <- readIORef stateRef
     let cityVal@(City{threshold=thresholdVal}) = city state
     let(cityAfterRelocation, moveHappened) =  relocateHomes cityVal
@@ -315,6 +431,16 @@ handleTimeout stateRef = do
     let updateLabel idx = let labelClassVal = labelHomeClass thresholdVal $ (homes cityAfterRelocation) DV.! idx
                       in changeLabel labelClassVal idx 
     let indices = [0,1.. (DV.length (homes cityAfterRelocation) - 1)]
+    mapM updateLabel indices
+    return ()
+
+handleTimeout :: IORef (GUIState) -> IO Bool 
+handleTimeout stateRef = do 
+    -- Retrieve the pure state from the stateRef 
+    state <- readIORef stateRef
+    let cityVal@(City{threshold=thresholdVal}) = city state
+    let(cityAfterRelocation, moveHappened) =  relocateHomes cityVal
+
     let resetGui =  GUIState (cityCtx state) cityVal 0 False False (components state)
 
     -- Call this to change the label to indicate the simulation is complete and then return a reset GUIState.
@@ -329,12 +455,11 @@ handleTimeout stateRef = do
        we need to cancel this timer and reset the grid of labels and our state information. If 
        isRunning is False then we just need to cancel this timer. 
      -} 
-     
     (result, newGUIState) <- case ((isRunning state), (shouldReset state)) of 
         (True, _) -> do
-            let endSim = currentStep state == (maxSteps $ cityCtx state) || moveHappened == False
+            let  endSim = currentStep state == (maxSteps $ cityCtx state) || moveHappened == False
             if endSim then endSimulation else do 
-                mapM updateLabel indices
+                updateGridColors stateRef
 
                 -- Update the GUIState with the nxtColor 
                 let guiStateWithRelocatedCity = updateCityAndStep state cityAfterRelocation
@@ -345,9 +470,6 @@ handleTimeout stateRef = do
                 return (True, guiStateWithRelocatedCity)
 
         (False, True) -> do 
-            let updateWhite = changeLabel.labelClass $ White
-            mapM updateWhite indices
-
             -- Reset the state! 
             endSimulation
         (False, _) -> endSimulation
@@ -364,7 +486,7 @@ launch ctx@(GuiCityCtx bPct rPct ePct ownershipInit maxStepsVal gSize)= do
 
   Gtk.init Nothing
 
-  win <- new Gtk.Window [ #title  := "Animated Labels Program", 
+  win <- new Gtk.Window [ #title  := "Schelling’s Model of Housing Segregation", 
                           #defaultHeight  := 600,  
                           #defaultWidth := 800,
                           #name := "window"
@@ -420,11 +542,6 @@ launch ctx@(GuiCityCtx bPct rPct ePct ownershipInit maxStepsVal gSize)= do
   #add textContainer centerTextWindow 
   #add textContainer rightTextWindow
   #add layoutWindow textContainer
- 
-  -- Add a global function to handle key presses in application 
-  -- You need to make sure you pass in your IORef of the GUIState 
-  -- to the key press 
-  on win #keyPressEvent (hanldeKeyPress stateRef) 
 
   -- Add the main application layout to the window 
   #add win layoutWindow 
@@ -434,4 +551,11 @@ launch ctx@(GuiCityCtx bPct rPct ePct ownershipInit maxStepsVal gSize)= do
   #showAll win
 
   -- Call the main action of the GTK library 
+ 
+  setUpGuiState <- setUpSimulation stateRef True
+  writeIORef stateRef setUpGuiState
+    -- Add a global function to handle key presses in application 
+  -- You need to make sure you pass in your IORef of the GUIState 
+  -- to the key press 
+  on win #keyPressEvent (hanldeKeyPress stateRef) 
   Gtk.main
